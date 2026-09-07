@@ -11,6 +11,9 @@
       --ink: #222;
       --muted: #555;
       --accent: #2f6f9e;
+      --select: #e08a2c;
+      --invalid: #d64545;
+      --line: #1f2937;
     }
     * { box-sizing: border-box; }
     body {
@@ -83,6 +86,12 @@
       font-size: 1.25rem;
       margin: 0;
     }
+    #canvas-hint {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: -0.5rem 0 1rem;
+      text-align: center;
+    }
     #back-btn {
       border: 1px solid var(--accent);
       background: transparent;
@@ -105,6 +114,26 @@
       display: block;
       height: auto;
     }
+    #dot-grid .dot {
+      cursor: pointer;
+      transition: stroke 0.15s ease, stroke-width 0.15s ease;
+    }
+    #dot-grid .dot:hover {
+      stroke: var(--accent);
+    }
+    #dot-grid .dot.dot-selected {
+      stroke: var(--select);
+      stroke-width: 3;
+    }
+    #dot-grid .dot.dot-invalid {
+      stroke: var(--invalid);
+      stroke-width: 3;
+    }
+    #dot-grid .braid-line {
+      stroke: var(--line);
+      stroke-width: 5;
+      stroke-linecap: round;
+    }
   </style>
 </head>
 <body>
@@ -124,6 +153,7 @@
       <h1 id="canvas-title"></h1>
       <button id="back-btn" type="button">Change columns</button>
     </div>
+    <p id="canvas-hint">Click a dot, then click another dot in the same row or column to connect them. Click a connected dot again to remove that line.</p>
     <div id="dot-grid-wrap"></div>
   </section>
 
@@ -162,9 +192,14 @@
       dotGridWrap.appendChild(buildDotGridSvg(numColumns));
     }
 
-    // Builds an SVG of evenly spaced dot columns. Every other column is
-    // offset vertically by half the row spacing, matching the staggered
-    // grid used as the starting point for Islamic geometric braid patterns.
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    // Builds an SVG of evenly spaced, clickable dot columns. Every other
+    // column is offset vertically by half the row spacing, matching the
+    // staggered grid used as the starting point for Islamic geometric
+    // braid patterns. Clicking two dots that share a row or column draws
+    // a straight line snapped between their centers; diagonal pairs are
+    // rejected. Clicking an already-connected pair removes that line.
     function buildDotGridSvg(numColumns) {
       const colSpacing = 92;
       const rowSpacing = 64;
@@ -175,12 +210,20 @@
       const width = marginX * 2 + colSpacing * (numColumns - 1);
       const height = marginY * 2 + rowSpacing * (DOTS_PER_COLUMN - 1) + rowSpacing / 2;
 
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      const svg = document.createElementNS(SVG_NS, 'svg');
       svg.setAttribute('id', 'dot-grid');
       svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
       svg.setAttribute('width', width);
       svg.setAttribute('height', height);
       svg.style.maxWidth = '100%';
+
+      const linesLayer = document.createElementNS(SVG_NS, 'g');
+      const dotsLayer = document.createElementNS(SVG_NS, 'g');
+      svg.appendChild(linesLayer);
+      svg.appendChild(dotsLayer);
+
+      const lines = new Map(); // "dotKey|dotKey" -> <line> element
+      let selected = null; // { key, x, y, el }
 
       for (let col = 0; col < numColumns; col++) {
         const x = marginX + col * colSpacing;
@@ -188,15 +231,69 @@
 
         for (let row = 0; row < DOTS_PER_COLUMN; row++) {
           const y = marginY + yOffset + row * rowSpacing;
-          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          const key = `${col}-${row}`;
+
+          const circle = document.createElementNS(SVG_NS, 'circle');
+          circle.setAttribute('class', 'dot');
           circle.setAttribute('cx', x);
           circle.setAttribute('cy', y);
           circle.setAttribute('r', radius);
           circle.setAttribute('fill', 'var(--dot-fill)');
           circle.setAttribute('stroke', 'var(--dot-stroke)');
           circle.setAttribute('stroke-width', '1.5');
-          svg.appendChild(circle);
+
+          const dot = { key, x, y, el: circle };
+          circle.addEventListener('click', () => handleDotClick(dot));
+          dotsLayer.appendChild(circle);
         }
+      }
+
+      function handleDotClick(dot) {
+        if (!selected) {
+          selected = dot;
+          dot.el.classList.add('dot-selected');
+          return;
+        }
+
+        if (selected.key === dot.key) {
+          selected.el.classList.remove('dot-selected');
+          selected = null;
+          return;
+        }
+
+        const aligned = selected.x === dot.x || selected.y === dot.y;
+        if (!aligned) {
+          flashInvalid(dot.el);
+          return;
+        }
+
+        toggleLine(selected, dot);
+        selected.el.classList.remove('dot-selected');
+        selected = null;
+      }
+
+      function flashInvalid(el) {
+        el.classList.add('dot-invalid');
+        setTimeout(() => el.classList.remove('dot-invalid'), 350);
+      }
+
+      function toggleLine(a, b) {
+        const lineKey = a.key < b.key ? `${a.key}|${b.key}` : `${b.key}|${a.key}`;
+        const existing = lines.get(lineKey);
+        if (existing) {
+          existing.remove();
+          lines.delete(lineKey);
+          return;
+        }
+
+        const line = document.createElementNS(SVG_NS, 'line');
+        line.setAttribute('class', 'braid-line');
+        line.setAttribute('x1', a.x);
+        line.setAttribute('y1', a.y);
+        line.setAttribute('x2', b.x);
+        line.setAttribute('y2', b.y);
+        linesLayer.appendChild(line);
+        lines.set(lineKey, line);
       }
 
       return svg;
