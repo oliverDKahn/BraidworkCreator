@@ -43,7 +43,7 @@
     }
     .column-options {
       display: grid;
-      grid-template-columns: repeat(5, 3.25rem);
+      grid-template-columns: repeat(4, 3.25rem);
       gap: 0.6rem;
       justify-content: center;
     }
@@ -92,7 +92,7 @@
       margin: -0.5rem 0 1rem;
       text-align: center;
     }
-    #back-btn {
+    .header-btn {
       border: 1px solid var(--accent);
       background: transparent;
       color: var(--accent);
@@ -101,7 +101,8 @@
       cursor: pointer;
       font-size: 0.9rem;
     }
-    #back-btn:hover {
+    .header-btn:hover,
+    .header-btn.active {
       background: var(--accent);
       color: #fff;
     }
@@ -151,16 +152,22 @@
   <section id="canvas-screen">
     <div class="canvas-header">
       <h1 id="canvas-title"></h1>
-      <button id="back-btn" type="button">Change columns</button>
+      <button id="extras-btn" class="header-btn" type="button">Toggle Extra Lines</button>
+      <button id="back-btn" class="header-btn" type="button">Change columns</button>
     </div>
-    <p id="canvas-hint">Click a dot, then click another dot in the same row or column to connect them. Click a connected dot again to remove that line.</p>
+    <p id="canvas-hint">Click a dot, then click another dot in the same row or column to connect them. Click a connected pair again to remove that line. Toggle Extra Lines fills in the side borders and the diagonal pairs.</p>
     <div id="dot-grid-wrap"></div>
   </section>
 
   <script>
-    const MIN_COLUMNS = 2;
-    const MAX_COLUMNS = 10;
+    // Only odd column counts: the two outer columns then share the same
+    // vertical offset, so the pattern stays symmetric side to side.
+    const COLUMN_OPTIONS = [3, 5, 7, 9];
     const DOTS_PER_COLUMN = 15;
+    // Dots are addressed by column and by "half-row" h, so that the
+    // half-row offset of odd columns falls on whole numbers:
+    // column c holds dots at h = 2*row + (c % 2).
+    const MAX_H = 2 * (DOTS_PER_COLUMN - 1);
 
     const setupScreen = document.getElementById('setup-screen');
     const canvasScreen = document.getElementById('canvas-screen');
@@ -168,9 +175,11 @@
     const dotGridWrap = document.getElementById('dot-grid-wrap');
     const canvasTitle = document.getElementById('canvas-title');
     const backBtn = document.getElementById('back-btn');
+    const extrasBtn = document.getElementById('extras-btn');
 
-    // Build the preset column-count buttons (2-10)
-    for (let n = MIN_COLUMNS; n <= MAX_COLUMNS; n++) {
+    let currentGrid = null;
+
+    for (const n of COLUMN_OPTIONS) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = n;
@@ -182,6 +191,12 @@
       canvasScreen.classList.remove('active');
       setupScreen.style.display = 'flex';
       dotGridWrap.innerHTML = '';
+      currentGrid = null;
+    });
+
+    extrasBtn.addEventListener('click', () => {
+      if (!currentGrid) return;
+      extrasBtn.classList.toggle('active', currentGrid.toggleExtras());
     });
 
     function showDotGrid(numColumns) {
@@ -189,7 +204,9 @@
       canvasScreen.classList.add('active');
       canvasTitle.textContent = `${numColumns} column${numColumns === 1 ? '' : 's'}`;
       dotGridWrap.innerHTML = '';
-      dotGridWrap.appendChild(buildDotGridSvg(numColumns));
+      extrasBtn.classList.remove('active');
+      currentGrid = buildDotGrid(numColumns);
+      dotGridWrap.appendChild(currentGrid.svg);
     }
 
     const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -200,15 +217,20 @@
     // braid patterns. Clicking two dots that share a row or column draws
     // a straight line snapped between their centers; diagonal pairs are
     // rejected. Clicking an already-connected pair removes that line.
-    function buildDotGridSvg(numColumns) {
+    //
+    // "Extra lines" adds the generated layer: vertical borders down the
+    // two outer columns, plus a pair of diagonals inside every open
+    // diamond group of four dots (see fillsDiamonds below).
+    function buildDotGrid(numColumns) {
       const colSpacing = 92;
       const rowSpacing = 64;
       const radius = 9;
       const marginX = 46;
       const marginY = 46;
+      const halfRow = rowSpacing / 2;
 
       const width = marginX * 2 + colSpacing * (numColumns - 1);
-      const height = marginY * 2 + rowSpacing * (DOTS_PER_COLUMN - 1) + rowSpacing / 2;
+      const height = marginY * 2 + rowSpacing * (DOTS_PER_COLUMN - 1) + halfRow;
 
       const svg = document.createElementNS(SVG_NS, 'svg');
       svg.setAttribute('id', 'dot-grid');
@@ -217,21 +239,23 @@
       svg.setAttribute('height', height);
       svg.style.maxWidth = '100%';
 
+      const extrasLayer = document.createElementNS(SVG_NS, 'g');
       const linesLayer = document.createElementNS(SVG_NS, 'g');
       const dotsLayer = document.createElementNS(SVG_NS, 'g');
+      svg.appendChild(extrasLayer);
       svg.appendChild(linesLayer);
       svg.appendChild(dotsLayer);
 
-      const lines = new Map(); // "dotKey|dotKey" -> <line> element
-      let selected = null; // { key, x, y, el }
+      const dots = new Map();  // "c,h" -> dot
+      const manual = new Map(); // "c,h|c,h" -> { a, b, el }
+      let selected = null;
+      let extrasOn = false;
 
       for (let col = 0; col < numColumns; col++) {
-        const x = marginX + col * colSpacing;
-        const yOffset = col % 2 === 1 ? rowSpacing / 2 : 0;
-
         for (let row = 0; row < DOTS_PER_COLUMN; row++) {
-          const y = marginY + yOffset + row * rowSpacing;
-          const key = `${col}-${row}`;
+          const h = row * 2 + (col % 2);
+          const x = marginX + col * colSpacing;
+          const y = marginY + h * halfRow;
 
           const circle = document.createElementNS(SVG_NS, 'circle');
           circle.setAttribute('class', 'dot');
@@ -242,11 +266,14 @@
           circle.setAttribute('stroke', 'var(--dot-stroke)');
           circle.setAttribute('stroke-width', '1.5');
 
-          const dot = { key, x, y, el: circle };
+          const dot = { c: col, h, x, y, el: circle, key: `${col},${h}` };
           circle.addEventListener('click', () => handleDotClick(dot));
           dotsLayer.appendChild(circle);
+          dots.set(dot.key, dot);
         }
       }
+
+      // ---- clicking dots draws straight lines ----
 
       function handleDotClick(dot) {
         if (!selected) {
@@ -255,20 +282,35 @@
           return;
         }
 
-        if (selected.key === dot.key) {
-          selected.el.classList.remove('dot-selected');
-          selected = null;
+        if (selected === dot) {
+          deselect();
           return;
         }
 
-        const aligned = selected.x === dot.x || selected.y === dot.y;
-        if (!aligned) {
-          flashInvalid(dot.el);
+        const a = selected;
+        if (a.c !== dot.c && a.h !== dot.h) {
+          flashInvalid(dot.el); // diagonal: not a straight line
           return;
         }
 
-        toggleLine(selected, dot);
-        selected.el.classList.remove('dot-selected');
+        const key = lineKey(a, dot);
+        if (manual.has(key)) {
+          const line = manual.get(key);
+          line.el.remove();
+          manual.delete(key);
+        } else if (extrasOn && crossesFilledDiamond(a, dot)) {
+          flashInvalid(dot.el); // a generated pair already occupies that diamond
+          return;
+        } else {
+          addManualLine(a, dot);
+        }
+
+        deselect();
+        renderExtras();
+      }
+
+      function deselect() {
+        if (selected) selected.el.classList.remove('dot-selected');
         selected = null;
       }
 
@@ -277,26 +319,118 @@
         setTimeout(() => el.classList.remove('dot-invalid'), 350);
       }
 
-      function toggleLine(a, b) {
-        const lineKey = a.key < b.key ? `${a.key}|${b.key}` : `${b.key}|${a.key}`;
-        const existing = lines.get(lineKey);
-        if (existing) {
-          existing.remove();
-          lines.delete(lineKey);
-          return;
-        }
+      function lineKey(a, b) {
+        return a.key < b.key ? `${a.key}|${b.key}` : `${b.key}|${a.key}`;
+      }
 
+      function addManualLine(a, b) {
+        manual.set(lineKey(a, b), { a, b, el: drawLine(a, b, linesLayer) });
+      }
+
+      function drawLine(a, b, layer) {
         const line = document.createElementNS(SVG_NS, 'line');
         line.setAttribute('class', 'braid-line');
         line.setAttribute('x1', a.x);
         line.setAttribute('y1', a.y);
         line.setAttribute('x2', b.x);
         line.setAttribute('y2', b.y);
-        linesLayer.appendChild(line);
-        lines.set(lineKey, line);
+        layer.appendChild(line);
+        return line;
       }
 
-      return svg;
+      // ---- diamond groups of four dots ----
+      //
+      // A diamond is addressed by its left dot (c, h). Its other three
+      // dots are the top (c+1, h-1), the bottom (c+1, h+1) and the right
+      // (c+2, h). Its horizontal axis is left-to-right, its vertical axis
+      // top-to-bottom -- exactly the two straight lines a user can draw
+      // through it.
+
+      const dot = (c, h) => dots.get(`${c},${h}`);
+
+      function isComplete(c, h) {
+        return !!(dot(c, h) && dot(c + 2, h) && dot(c + 1, h - 1) && dot(c + 1, h + 1));
+      }
+
+      // A straight line blocks every diamond whose axis it covers, so a
+      // long line can block several diamonds at once.
+      function isBlocked(c, h) {
+        for (const { a, b } of manual.values()) {
+          if (a.h === b.h && a.h === h) {
+            if (Math.min(a.c, b.c) <= c && Math.max(a.c, b.c) >= c + 2) return true;
+          }
+          if (a.c === b.c && a.c === c + 1) {
+            if (Math.min(a.h, b.h) <= h - 1 && Math.max(a.h, b.h) >= h + 1) return true;
+          }
+        }
+        return false;
+      }
+
+      // The diamonds whose axis a proposed straight line would cover.
+      function coveredDiamonds(a, b) {
+        const out = [];
+        if (a.h === b.h) {
+          const c1 = Math.min(a.c, b.c);
+          const c2 = Math.max(a.c, b.c);
+          for (let c = c1; c + 2 <= c2; c += 2) out.push([c, a.h]);
+        } else {
+          const h1 = Math.min(a.h, b.h);
+          const h2 = Math.max(a.h, b.h);
+          for (let h = h1 + 1; h + 1 <= h2; h += 2) out.push([a.c - 1, h]);
+        }
+        return out;
+      }
+
+      function crossesFilledDiamond(a, b) {
+        return coveredDiamonds(a, b).some(([c, h]) => isComplete(c, h) && !isBlocked(c, h));
+      }
+
+      // ---- the generated layer ----
+
+      function renderExtras() {
+        extrasLayer.replaceChildren();
+        if (!extrasOn) return;
+
+        // Vertical borders down the two outer columns.
+        for (const c of [0, numColumns - 1]) {
+          const top = dot(c, c % 2);
+          const bottom = dot(c, c % 2 + MAX_H);
+          if (top && bottom) drawLine(top, bottom, extrasLayer);
+        }
+
+        // A pair of parallel diagonals in every open diamond. The
+        // direction alternates band by band: diamonds whose left column is
+        // even take the two down-right sides, odd ones the two up-right
+        // sides, which is what gives the pattern its woven look.
+        for (let c = 0; c + 2 < numColumns; c++) {
+          for (let h = c % 2; h <= c % 2 + MAX_H; h += 2) {
+            if (!isComplete(c, h) || isBlocked(c, h)) continue;
+
+            const left = dot(c, h);
+            const top = dot(c + 1, h - 1);
+            const bottom = dot(c + 1, h + 1);
+            const right = dot(c + 2, h);
+
+            if (c % 2 === 0) {
+              drawLine(left, bottom, extrasLayer);
+              drawLine(top, right, extrasLayer);
+            } else {
+              drawLine(left, top, extrasLayer);
+              drawLine(bottom, right, extrasLayer);
+            }
+          }
+        }
+      }
+
+      return {
+        svg,
+        toggleExtras() {
+          extrasOn = !extrasOn;
+          deselect();
+          renderExtras();
+          return extrasOn;
+        }
+      };
     }
   </script>
 </body>
