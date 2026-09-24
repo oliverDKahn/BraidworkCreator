@@ -1,437 +1,525 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Braidwork Creator</title>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Braidwork Creator</title>
+<style>
+  :root {
+    --bg: #efece5;
+    --panel: #fbfaf7;
+    --line: #ded8cc;
+    --ink: #1e242d;
+    --muted: #646c79;
+    --accent: #1f6fa8;
+    --accent-soft: #e1edf6;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
     :root {
-      --dot-fill: #d7e8f7;
-      --dot-stroke: #1f3552;
-      --ink: #222;
-      --muted: #555;
-      --accent: #2f6f9e;
-      --select: #e08a2c;
-      --invalid: #d64545;
-      --line: #1f2937;
+      --bg: #13161a;
+      --panel: #1b1f25;
+      --line: #2d333c;
+      --ink: #e8ebf0;
+      --muted: #98a1ad;
+      --accent: #6cb2e0;
+      --accent-soft: #1f2c37;
     }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #f5f5f5;
-      color: var(--ink);
-      min-height: 100vh;
-    }
+  }
 
-    /* ---- Setup screen ---- */
-    #setup-screen {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 2rem 1rem;
-    }
-    #setup-screen h1 {
-      font-size: 2rem;
-      margin-bottom: 0.4rem;
-    }
-    #setup-screen p {
-      color: var(--muted);
-      margin-bottom: 1.75rem;
-    }
-    .column-options {
-      display: grid;
-      grid-template-columns: repeat(4, 3.25rem);
-      gap: 0.6rem;
-      justify-content: center;
-    }
-    .column-options button {
-      width: 3.25rem;
-      height: 3.25rem;
-      border-radius: 50%;
-      border: 2px solid var(--dot-stroke);
-      background: var(--dot-fill);
-      color: var(--dot-stroke);
-      font-size: 1.1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.12s ease, background 0.12s ease;
-    }
-    .column-options button:hover {
-      background: var(--accent);
-      color: #fff;
-      transform: translateY(-2px);
-    }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 24px 16px 40px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
 
-    /* ---- Canvas screen ---- */
-    #canvas-screen {
-      display: none;
-      min-height: 100vh;
-      padding: 1.5rem 1rem 3rem;
-    }
-    #canvas-screen.active {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .canvas-header {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1.25rem;
-    }
-    .canvas-header h1 {
-      font-size: 1.25rem;
-      margin: 0;
-    }
-    #canvas-hint {
-      color: var(--muted);
-      font-size: 0.9rem;
-      margin: -0.5rem 0 1rem;
-      text-align: center;
-    }
-    .header-btn {
-      border: 1px solid var(--accent);
-      background: transparent;
-      color: var(--accent);
-      padding: 0.4rem 0.9rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-    .header-btn:hover,
-    .header-btn.active {
-      background: var(--accent);
-      color: #fff;
-    }
-    #dot-grid-wrap {
-      width: 100%;
-      display: flex;
-      justify-content: center;
-    }
-    #dot-grid {
-      display: block;
-      height: auto;
-    }
-    #dot-grid .dot {
-      cursor: pointer;
-      transition: stroke 0.15s ease, stroke-width 0.15s ease;
-    }
-    #dot-grid .dot:hover {
-      stroke: var(--accent);
-    }
-    #dot-grid .dot.dot-selected {
-      stroke: var(--select);
-      stroke-width: 3;
-    }
-    #dot-grid .dot.dot-invalid {
-      stroke: var(--invalid);
-      stroke-width: 3;
-    }
-    #dot-grid .braid-line {
-      stroke: var(--line);
-      stroke-width: 5;
-      stroke-linecap: round;
-    }
-  </style>
+  header h1 { margin: 0 0 2px; font-size: 1.35rem; letter-spacing: -0.01em; }
+  header p { margin: 0 0 18px; color: var(--muted); font-size: 0.88rem; }
+
+  /* ---- toolbar ---- */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field .label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .field label {
+    font-size: 0.9rem;
+    font-style: italic;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .field .hint { font-size: 0.72rem; color: var(--muted); }
+  input[type="number"] {
+    width: 5.5rem;
+    padding: 6px 8px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+  }
+  input[type="number"]:focus-visible,
+  .btn:focus-visible,
+  .seg:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .segmented { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  .seg {
+    font: inherit;
+    padding: 6px 10px;
+    border: 0;
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .seg + .seg { border-left: 1px solid var(--line); }
+  .seg[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  .spacer { flex: 1 1 auto; }
+
+  .btn {
+    font: inherit;
+    padding: 7px 12px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  /* ---- stage ---- */
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex;
+    justify-content: center;
+  }
+  #board {
+    width: 100%;
+    height: auto;
+    max-height: 68vh;
+    touch-action: none;
+    display: block;
+  }
+
+  .status {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+  .status b { font-weight: 600; color: var(--ink); }
+
+  footer {
+    margin-top: 22px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+  footer h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 6px; }
+  footer ul { margin: 0; padding-left: 1.1rem; }
+  kbd {
+    font: inherit;
+    font-size: 0.78em;
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+</style>
 </head>
 <body>
+<div class="wrap">
 
-  <!-- Screen 1: choose number of dot columns -->
-  <main id="setup-screen">
-    <div>
-      <h1>Braidwork Creator</h1>
-      <p>How many dot columns would you like?</p>
-      <div class="column-options" id="column-options"></div>
+  <header>
+    <h1>Braidwork Creator</h1>
+    <p>Build an Islamic braidwork (guilloche) design on a 2<em>m</em> × 2<em>n</em> dot lattice.</p>
+  </header>
+
+  <div class="toolbar">
+    <div class="field">
+      <label for="in-m">m</label>
+      <input id="in-m" type="number" min="2" max="20" step="2" value="4">
+      <span class="hint">even, ≥ 2 &middot; width 2m</span>
     </div>
-  </main>
 
-  <!-- Screen 2: the dot grid -->
-  <section id="canvas-screen">
-    <div class="canvas-header">
-      <h1 id="canvas-title"></h1>
-      <button id="extras-btn" class="header-btn" type="button">Toggle Extra Lines</button>
-      <button id="back-btn" class="header-btn" type="button">Change columns</button>
+    <div class="field">
+      <label for="in-n">n</label>
+      <input id="in-n" type="number" min="1" max="20" step="1" value="3">
+      <span class="hint">≥ 1 &middot; height 2n</span>
     </div>
-    <p id="canvas-hint">Click a dot, then click another dot in the same row or column to connect them. Click a connected pair again to remove that line. Toggle Extra Lines fills in the side borders and the diagonal pairs.</p>
-    <div id="dot-grid-wrap"></div>
-  </section>
 
-  <script>
-    // Only odd column counts: the two outer columns then share the same
-    // vertical offset, so the pattern stays symmetric side to side.
-    const COLUMN_OPTIONS = [3, 5, 7, 9];
-    const DOTS_PER_COLUMN = 15;
-    // Dots are addressed by column and by "half-row" h, so that the
-    // half-row offset of odd columns falls on whole numbers:
-    // column c holds dots at h = 2*row + (c % 2).
-    const MAX_H = 2 * (DOTS_PER_COLUMN - 1);
+    <div class="field">
+      <span class="label">Diagonal pairs</span>
+      <div class="segmented" role="group" aria-label="Diagonal pair orientation">
+        <button class="seg" id="seg-ne" aria-pressed="true">&#10231; NE&ndash;SW</button>
+        <button class="seg" id="seg-nw" aria-pressed="false">&#10232; NW&ndash;SE</button>
+      </div>
+      <span class="hint">flipping gives the dual</span>
+    </div>
 
-    const setupScreen = document.getElementById('setup-screen');
-    const canvasScreen = document.getElementById('canvas-screen');
-    const columnOptions = document.getElementById('column-options');
-    const dotGridWrap = document.getElementById('dot-grid-wrap');
-    const canvasTitle = document.getElementById('canvas-title');
-    const backBtn = document.getElementById('back-btn');
-    const extrasBtn = document.getElementById('extras-btn');
+    <div class="spacer"></div>
 
-    let currentGrid = null;
+    <label class="check"><input type="checkbox" id="in-dots" checked> Show dots</label>
+    <button class="btn" id="btn-clear">Clear barriers</button>
+    <button class="btn" id="btn-save">Download SVG</button>
+  </div>
 
-    for (const n of COLUMN_OPTIONS) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = n;
-      btn.addEventListener('click', () => showDotGrid(n));
-      columnOptions.appendChild(btn);
+  <div class="stage">
+    <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Braidwork pattern">
+      <style>
+        .paper   { fill: #f7f3ea; }
+        .strap   { stroke: #1f6fa8; stroke-width: 0.1; stroke-linecap: round; fill: none; }
+        .strap.dim { stroke-opacity: 0.2; }
+        .strap.ghost { display: inline; stroke-opacity: 0.28; }
+        .frame   { fill: none; stroke: #141a22; stroke-width: 0.13; stroke-linejoin: miter; }
+        .barrier { stroke: #141a22; stroke-width: 0.13; stroke-linecap: round; }
+        .dot     { fill: #141a22; }
+        .zone    { fill: transparent; cursor: pointer; }
+        .zone:hover { fill: #1f6fa8; fill-opacity: 0.08; }
+        .preview { stroke: #141a22; stroke-opacity: 0.45; stroke-width: 0.13;
+                   stroke-linecap: round; stroke-dasharray: 0.2 0.2; pointer-events: none; }
+        .off       { display: none; }
+        .no-dots .dot { display: none; }
+      </style>
+      <g id="content"></g>
+    </svg>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <footer>
+    <h2>Drawing barriers</h2>
+    <ul>
+      <li>Click the <b>left or right</b> half of a diamond for a <b>horizontal</b> barrier; the <b>top or bottom</b> half for a <b>vertical</b> one.</li>
+      <li>The diagonal pair inside that diamond is erased automatically. Click the same half again to remove the barrier.</li>
+      <li>Hold and <b>drag</b> across diamonds to chain barriers together.</li>
+    </ul>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PAD = 0.75;
+  var MAXV = 20;
+
+  var S = { m: 4, n: 3, flip: 1, barriers: new Map() };
+
+  var svg = document.getElementById("board");
+  var content = document.getElementById("content");
+  var statusEl = document.getElementById("status");
+  var preview = null;
+
+  /* ---- geometry helpers -------------------------------------------------
+     Dots sit on every lattice point (x,y) with x+y even.
+     Diamond centres are the points with x+y odd; a diamond is "full" when all
+     four of its dots exist, i.e. 1 <= cx <= 2m-1 and 1 <= cy <= 2n-1.
+     Edge-adjacent centres differ by (+-1,+-1), so cx parity 2-colours them. */
+
+  function W() { return 2 * S.m; }
+  function H() { return 2 * S.n; }
+  function Y(y) { return H() - y; }          // flip to SVG's downward y
+  function key(cx, cy) { return cx + "," + cy; }
+
+  function eachDiamond(fn) {
+    for (var cy = 1; cy <= H() - 1; cy++) {
+      for (var cx = 1; cx <= W() - 1; cx++) {
+        if ((cx + cy) % 2 === 1) fn(cx, cy);
+      }
     }
+  }
 
-    backBtn.addEventListener('click', () => {
-      canvasScreen.classList.remove('active');
-      setupScreen.style.display = 'flex';
-      dotGridWrap.innerHTML = '';
-      currentGrid = null;
+  // 0 -> "/" pair (east-south, west-north); 1 -> "\" pair (east-north, west-south)
+  function pairType(cx) { return (cx + S.flip) % 2; }
+
+  function strapSegments(cx, cy) {
+    return pairType(cx) === 0
+      ? [[cx + 1, cy, cx, cy - 1], [cx - 1, cy, cx, cy + 1]]
+      : [[cx + 1, cy, cx, cy + 1], [cx - 1, cy, cx, cy - 1]];
+  }
+
+  function line(cls, extra, x1, y1, x2, y2) {
+    return '<line class="' + cls + '"' + extra +
+      ' x1="' + x1 + '" y1="' + Y(y1) + '" x2="' + x2 + '" y2="' + Y(y2) + '"/>';
+  }
+
+  // Each diamond splits into four kites meeting at its centre. The east and
+  // west kites arm the horizontal barrier, the north and south ones the
+  // vertical barrier.
+  function ewKite(cx, cy, dx) {
+    return "M" + cx + "," + Y(cy) +
+      "L" + (cx + dx * 0.5) + "," + Y(cy + 0.5) +
+      "L" + (cx + dx) + "," + Y(cy) +
+      "L" + (cx + dx * 0.5) + "," + Y(cy - 0.5) + "Z";
+  }
+  function nsKite(cx, cy, dy) {
+    return "M" + cx + "," + Y(cy) +
+      "L" + (cx + 0.5) + "," + Y(cy + dy * 0.5) +
+      "L" + cx + "," + Y(cy + dy) +
+      "L" + (cx - 0.5) + "," + Y(cy + dy * 0.5) + "Z";
+  }
+  function hZone(cx, cy) { return ewKite(cx, cy, 1) + ewKite(cx, cy, -1); }
+  function vZone(cx, cy) { return nsKite(cx, cy, 1) + nsKite(cx, cy, -1); }
+
+  /* ---- render ---------------------------------------------------------- */
+
+  function render() {
+    var w = W(), h = H(), parts = [], dots = 0;
+
+    // drop barriers that no longer fit the grid
+    S.barriers.forEach(function (v, k) {
+      var p = k.split(",");
+      if (+p[0] > w - 1 || +p[1] > h - 1) S.barriers.delete(k);
     });
 
-    extrasBtn.addEventListener('click', () => {
-      if (!currentGrid) return;
-      extrasBtn.classList.toggle('active', currentGrid.toggleExtras());
+    svg.setAttribute("viewBox",
+      (-PAD) + " " + (-PAD) + " " + (w + 2 * PAD) + " " + (h + 2 * PAD));
+
+    parts.push('<rect class="paper" x="' + (-PAD) + '" y="' + (-PAD) +
+      '" width="' + (w + 2 * PAD) + '" height="' + (h + 2 * PAD) + '"/>');
+
+    // strap-lines, one alternating diagonal pair per full diamond
+    eachDiamond(function (cx, cy) {
+      var k = key(cx, cy);
+      var off = S.barriers.has(k) ? " off" : "";
+      strapSegments(cx, cy).forEach(function (s) {
+        parts.push(line("strap" + off, ' data-d="' + k + '"', s[0], s[1], s[2], s[3]));
+      });
     });
 
-    function showDotGrid(numColumns) {
-      setupScreen.style.display = 'none';
-      canvasScreen.classList.add('active');
-      canvasTitle.textContent = `${numColumns} column${numColumns === 1 ? '' : 's'}`;
-      dotGridWrap.innerHTML = '';
-      extrasBtn.classList.remove('active');
-      currentGrid = buildDotGrid(numColumns);
-      dotGridWrap.appendChild(currentGrid.svg);
+    // border: the rectangle through the outermost dots
+    parts.push('<rect class="frame" x="0" y="0" width="' + w + '" height="' + h + '"/>');
+
+    // barriers (both orientations pre-built, hidden until used)
+    eachDiamond(function (cx, cy) {
+      var k = key(cx, cy), cur = S.barriers.get(k);
+      parts.push(line("barrier" + (cur === "h" ? "" : " off"),
+        ' data-b="' + k + '" data-t="h"', cx - 1, cy, cx + 1, cy));
+      parts.push(line("barrier" + (cur === "v" ? "" : " off"),
+        ' data-b="' + k + '" data-t="v"', cx, cy - 1, cx, cy + 1));
+    });
+
+    // dots
+    for (var y = 0; y <= h; y++) {
+      for (var x = 0; x <= w; x++) {
+        if ((x + y) % 2 !== 0) continue;
+        dots++;
+        parts.push('<circle class="dot" cx="' + x + '" cy="' + Y(y) + '" r="0.17"/>');
+      }
     }
 
-    const SVG_NS = 'http://www.w3.org/2000/svg';
+    // hit zones
+    eachDiamond(function (cx, cy) {
+      var d = ' data-cx="' + cx + '" data-cy="' + cy + '"';
+      parts.push('<path class="zone"' + d + ' data-t="h" d="' + hZone(cx, cy) + '"/>');
+      parts.push('<path class="zone"' + d + ' data-t="v" d="' + vZone(cx, cy) + '"/>');
+    });
 
-    // Builds an SVG of evenly spaced, clickable dot columns. Every other
-    // column is offset vertically by half the row spacing, matching the
-    // staggered grid used as the starting point for Islamic geometric
-    // braid patterns. Clicking two dots that share a row or column draws
-    // a straight line snapped between their centers; diagonal pairs are
-    // rejected. Clicking an already-connected pair removes that line.
-    //
-    // "Extra lines" adds the generated layer: vertical borders down the
-    // two outer columns, plus a pair of diagonals inside every open
-    // diamond group of four dots (see fillsDiamonds below).
-    function buildDotGrid(numColumns) {
-      const colSpacing = 92;
-      const rowSpacing = 64;
-      const radius = 9;
-      const marginX = 46;
-      const marginY = 46;
-      const halfRow = rowSpacing / 2;
+    parts.push('<line class="preview off" id="preview"/>');
 
-      const width = marginX * 2 + colSpacing * (numColumns - 1);
-      const height = marginY * 2 + rowSpacing * (DOTS_PER_COLUMN - 1) + halfRow;
+    content.innerHTML = parts.join("");
+    preview = document.getElementById("preview");
+    updateStatus(dots);
+  }
 
-      const svg = document.createElementNS(SVG_NS, 'svg');
-      svg.setAttribute('id', 'dot-grid');
-      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-      svg.setAttribute('width', width);
-      svg.setAttribute('height', height);
-      svg.style.maxWidth = '100%';
+  function updateStatus(dots) {
+    if (dots === undefined) dots = +statusEl.dataset.dots || 0;
+    statusEl.dataset.dots = dots;
+    statusEl.innerHTML =
+      "<span>lattice <b>" + W() + " &times; " + H() + "</b></span>" +
+      "<span>dots <b>" + dots + "</b></span>" +
+      "<span>barriers <b>" + S.barriers.size + "</b></span>";
+  }
 
-      const extrasLayer = document.createElementNS(SVG_NS, 'g');
-      const linesLayer = document.createElementNS(SVG_NS, 'g');
-      const dotsLayer = document.createElementNS(SVG_NS, 'g');
-      svg.appendChild(extrasLayer);
-      svg.appendChild(linesLayer);
-      svg.appendChild(dotsLayer);
+  /* ---- barriers -------------------------------------------------------- */
 
-      const dots = new Map();  // "c,h" -> dot
-      const manual = new Map(); // "c,h|c,h" -> { a, b, el }
-      let selected = null;
-      let extrasOn = false;
+  function setBarrier(cx, cy, type) {
+    var k = key(cx, cy);
+    if (type) S.barriers.set(k, type); else S.barriers.delete(k);
 
-      for (let col = 0; col < numColumns; col++) {
-        for (let row = 0; row < DOTS_PER_COLUMN; row++) {
-          const h = row * 2 + (col % 2);
-          const x = marginX + col * colSpacing;
-          const y = marginY + h * halfRow;
+    content.querySelectorAll('.strap[data-d="' + k + '"]').forEach(function (el) {
+      el.classList.toggle("off", !!type);
+    });
+    content.querySelectorAll('.barrier[data-b="' + k + '"]').forEach(function (el) {
+      el.classList.toggle("off", el.getAttribute("data-t") !== type);
+    });
+    updateStatus();
+  }
 
-          const circle = document.createElementNS(SVG_NS, 'circle');
-          circle.setAttribute('class', 'dot');
-          circle.setAttribute('cx', x);
-          circle.setAttribute('cy', y);
-          circle.setAttribute('r', radius);
-          circle.setAttribute('fill', 'var(--dot-fill)');
-          circle.setAttribute('stroke', 'var(--dot-stroke)');
-          circle.setAttribute('stroke-width', '1.5');
+  /* ---- pointer interaction --------------------------------------------- */
 
-          const dot = { c: col, h, x, y, el: circle, key: `${col},${h}` };
-          circle.addEventListener('click', () => handleDotClick(dot));
-          dotsLayer.appendChild(circle);
-          dots.set(dot.key, dot);
-        }
-      }
+  var drag = null; // 'add' | 'remove'
 
-      // ---- clicking dots draws straight lines ----
+  function zoneAt(e) {
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    return el && el.classList && el.classList.contains("zone") ? el : null;
+  }
 
-      function handleDotClick(dot) {
-        if (!selected) {
-          selected = dot;
-          dot.el.classList.add('dot-selected');
-          return;
-        }
+  function apply(z) {
+    var cx = +z.getAttribute("data-cx"),
+        cy = +z.getAttribute("data-cy"),
+        t = z.getAttribute("data-t"),
+        cur = S.barriers.get(key(cx, cy));
+    if (drag === "remove") { if (cur) setBarrier(cx, cy, null); }
+    else if (cur !== t) setBarrier(cx, cy, t);
+  }
 
-        if (selected === dot) {
-          deselect();
-          return;
-        }
+  function showPreview(z) {
+    if (!preview) return;
+    var cx = +z.getAttribute("data-cx"),
+        cy = +z.getAttribute("data-cy"),
+        t = z.getAttribute("data-t"),
+        k = key(cx, cy),
+        cur = S.barriers.get(k),
+        straps = content.querySelectorAll('.strap[data-d="' + k + '"]'),
+        a;
 
-        const a = selected;
-        if (a.c !== dot.c && a.h !== dot.h) {
-          flashInvalid(dot.el); // diagonal: not a straight line
-          return;
-        }
+    hidePreview();
 
-        const key = lineKey(a, dot);
-        if (manual.has(key)) {
-          const line = manual.get(key);
-          line.el.remove();
-          manual.delete(key);
-        } else if (extrasOn && crossesFilledDiamond(a, dot)) {
-          flashInvalid(dot.el); // a generated pair already occupies that diamond
-          return;
-        } else {
-          addManualLine(a, dot);
-        }
-
-        deselect();
-        renderExtras();
-      }
-
-      function deselect() {
-        if (selected) selected.el.classList.remove('dot-selected');
-        selected = null;
-      }
-
-      function flashInvalid(el) {
-        el.classList.add('dot-invalid');
-        setTimeout(() => el.classList.remove('dot-invalid'), 350);
-      }
-
-      function lineKey(a, b) {
-        return a.key < b.key ? `${a.key}|${b.key}` : `${b.key}|${a.key}`;
-      }
-
-      function addManualLine(a, b) {
-        manual.set(lineKey(a, b), { a, b, el: drawLine(a, b, linesLayer) });
-      }
-
-      function drawLine(a, b, layer) {
-        const line = document.createElementNS(SVG_NS, 'line');
-        line.setAttribute('class', 'braid-line');
-        line.setAttribute('x1', a.x);
-        line.setAttribute('y1', a.y);
-        line.setAttribute('x2', b.x);
-        line.setAttribute('y2', b.y);
-        layer.appendChild(line);
-        return line;
-      }
-
-      // ---- diamond groups of four dots ----
-      //
-      // A diamond is addressed by its left dot (c, h). Its other three
-      // dots are the top (c+1, h-1), the bottom (c+1, h+1) and the right
-      // (c+2, h). Its horizontal axis is left-to-right, its vertical axis
-      // top-to-bottom -- exactly the two straight lines a user can draw
-      // through it.
-
-      const dot = (c, h) => dots.get(`${c},${h}`);
-
-      function isComplete(c, h) {
-        return !!(dot(c, h) && dot(c + 2, h) && dot(c + 1, h - 1) && dot(c + 1, h + 1));
-      }
-
-      // A straight line blocks every diamond whose axis it covers, so a
-      // long line can block several diamonds at once.
-      function isBlocked(c, h) {
-        for (const { a, b } of manual.values()) {
-          if (a.h === b.h && a.h === h) {
-            if (Math.min(a.c, b.c) <= c && Math.max(a.c, b.c) >= c + 2) return true;
-          }
-          if (a.c === b.c && a.c === c + 1) {
-            if (Math.min(a.h, b.h) <= h - 1 && Math.max(a.h, b.h) >= h + 1) return true;
-          }
-        }
-        return false;
-      }
-
-      // The diamonds whose axis a proposed straight line would cover.
-      function coveredDiamonds(a, b) {
-        const out = [];
-        if (a.h === b.h) {
-          const c1 = Math.min(a.c, b.c);
-          const c2 = Math.max(a.c, b.c);
-          for (let c = c1; c + 2 <= c2; c += 2) out.push([c, a.h]);
-        } else {
-          const h1 = Math.min(a.h, b.h);
-          const h2 = Math.max(a.h, b.h);
-          for (let h = h1 + 1; h + 1 <= h2; h += 2) out.push([a.c - 1, h]);
-        }
-        return out;
-      }
-
-      function crossesFilledDiamond(a, b) {
-        return coveredDiamonds(a, b).some(([c, h]) => isComplete(c, h) && !isBlocked(c, h));
-      }
-
-      // ---- the generated layer ----
-
-      function renderExtras() {
-        extrasLayer.replaceChildren();
-        if (!extrasOn) return;
-
-        // Vertical borders down the two outer columns.
-        for (const c of [0, numColumns - 1]) {
-          const top = dot(c, c % 2);
-          const bottom = dot(c, c % 2 + MAX_H);
-          if (top && bottom) drawLine(top, bottom, extrasLayer);
-        }
-
-        // A pair of parallel diagonals in every open diamond. The
-        // direction alternates band by band: diamonds whose left column is
-        // even take the two down-right sides, odd ones the two up-right
-        // sides, which is what gives the pattern its woven look.
-        for (let c = 0; c + 2 < numColumns; c++) {
-          for (let h = c % 2; h <= c % 2 + MAX_H; h += 2) {
-            if (!isComplete(c, h) || isBlocked(c, h)) continue;
-
-            const left = dot(c, h);
-            const top = dot(c + 1, h - 1);
-            const bottom = dot(c + 1, h + 1);
-            const right = dot(c + 2, h);
-
-            if (c % 2 === 0) {
-              drawLine(left, bottom, extrasLayer);
-              drawLine(top, right, extrasLayer);
-            } else {
-              drawLine(left, top, extrasLayer);
-              drawLine(bottom, right, extrasLayer);
-            }
-          }
-        }
-      }
-
-      return {
-        svg,
-        toggleExtras() {
-          extrasOn = !extrasOn;
-          deselect();
-          renderExtras();
-          return extrasOn;
-        }
-      };
+    if (cur === t) {
+      // clicking again lifts this barrier: show the pair that would come back
+      straps.forEach(function (el) { el.classList.add("ghost"); });
+      return;
     }
-  </script>
+    a = t === "h" ? [cx - 1, cy, cx + 1, cy] : [cx, cy - 1, cx, cy + 1];
+    preview.setAttribute("x1", a[0]); preview.setAttribute("y1", Y(a[1]));
+    preview.setAttribute("x2", a[2]); preview.setAttribute("y2", Y(a[3]));
+    preview.classList.remove("off");
+    straps.forEach(function (el) { el.classList.add("dim"); });
+  }
+
+  function hidePreview() {
+    if (preview) preview.classList.add("off");
+    content.querySelectorAll(".strap.dim, .strap.ghost").forEach(function (el) {
+      el.classList.remove("dim", "ghost");
+    });
+  }
+
+  svg.addEventListener("pointerover", function (e) {
+    if (!drag && e.target.classList && e.target.classList.contains("zone")) showPreview(e.target);
+  });
+  svg.addEventListener("pointerout", function (e) {
+    if (e.target.classList && e.target.classList.contains("zone")) hidePreview();
+  });
+
+  svg.addEventListener("pointerdown", function (e) {
+    var z = e.target.classList && e.target.classList.contains("zone") ? e.target : null;
+    if (!z) return;
+    e.preventDefault();
+    var cur = S.barriers.get(key(+z.getAttribute("data-cx"), +z.getAttribute("data-cy")));
+    drag = cur === z.getAttribute("data-t") ? "remove" : "add";
+    apply(z);
+    hidePreview();
+  });
+
+  document.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var z = zoneAt(e);
+    if (z) { apply(z); hidePreview(); }
+  });
+
+  document.addEventListener("pointerup", function () { drag = null; });
+  document.addEventListener("pointercancel", function () { drag = null; });
+
+  /* ---- controls -------------------------------------------------------- */
+
+  var inM = document.getElementById("in-m"),
+      inN = document.getElementById("in-n"),
+      segNE = document.getElementById("seg-ne"),
+      segNW = document.getElementById("seg-nw");
+
+  inM.addEventListener("change", function () {
+    var v = parseInt(inM.value, 10);
+    if (!isFinite(v)) v = S.m;
+    S.m = Math.max(2, Math.min(MAXV, 2 * Math.round(v / 2))); // m nonzero and even
+    inM.value = S.m;
+    render();
+  });
+
+  inN.addEventListener("change", function () {
+    var v = parseInt(inN.value, 10);
+    if (!isFinite(v)) v = S.n;
+    S.n = Math.max(1, Math.min(MAXV, Math.round(v)));         // n nonzero
+    inN.value = S.n;
+    render();
+  });
+
+  function setFlip(f) {
+    S.flip = f;
+    segNE.setAttribute("aria-pressed", f === 1 ? "true" : "false");
+    segNW.setAttribute("aria-pressed", f === 0 ? "true" : "false");
+    render();
+  }
+  segNE.addEventListener("click", function () { setFlip(1); });
+  segNW.addEventListener("click", function () { setFlip(0); });
+
+  document.getElementById("in-dots").addEventListener("change", function (e) {
+    svg.classList.toggle("no-dots", !e.target.checked);
+  });
+
+  document.getElementById("btn-clear").addEventListener("click", function () {
+    S.barriers.clear();
+    render();
+  });
+
+  document.getElementById("btn-save").addEventListener("click", function () {
+    var clone = svg.cloneNode(true);
+    clone.querySelectorAll(".zone, .off, .preview").forEach(function (el) { el.remove(); });
+    clone.querySelectorAll(".dim").forEach(function (el) { el.classList.remove("dim"); });
+    clone.removeAttribute("style");
+    clone.setAttribute("width", (W() + 2 * PAD) * 40);
+    clone.setAttribute("height", (H() + 2 * PAD) * 40);
+
+    var blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + clone.outerHTML],
+      { type: "image/svg+xml" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "braidwork-m" + S.m + "-n" + S.n + ".svg";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+
+  render();
+})();
+</script>
 </body>
 </html>
