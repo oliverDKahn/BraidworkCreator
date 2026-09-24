@@ -45,7 +45,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 14px;
+    gap: 12px;
     padding: 12px 14px;
     background: var(--panel);
     border: 1px solid var(--line);
@@ -68,7 +68,7 @@
   }
   .field .hint { font-size: 0.72rem; color: var(--muted); }
   input[type="number"] {
-    width: 5.5rem;
+    width: 4.25rem;
     padding: 6px 8px;
     font: inherit;
     color: var(--ink);
@@ -77,7 +77,7 @@
     border-radius: 7px;
   }
   input[type="range"] {
-    width: 9rem;
+    width: 7.5rem;
     margin: 4px 0 2px;
     accent-color: var(--accent);
   }
@@ -115,6 +115,7 @@
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
 
+  .checks { display: flex; flex-direction: column; gap: 3px; }
   .check {
     display: flex;
     align-items: center;
@@ -182,13 +183,13 @@
     <div class="field">
       <label for="in-m">m</label>
       <input id="in-m" type="number" min="2" max="20" step="2" value="4">
-      <span class="hint">even, ≥ 2 &middot; width 2m</span>
+      <span class="hint">even, ≥ 2</span>
     </div>
 
     <div class="field">
       <label for="in-n">n</label>
       <input id="in-n" type="number" min="1" max="20" step="1" value="3">
-      <span class="hint">≥ 1 &middot; height 2n</span>
+      <span class="hint">≥ 1</span>
     </div>
 
     <div class="field">
@@ -201,14 +202,23 @@
     </div>
 
     <div class="field">
-      <span class="label">Offset</span>
+      <span class="label">Offset <span id="offset-val">0.100</span></span>
       <input id="in-offset" type="range" min="0" max="0.2" step="0.005" value="0.1">
-      <span class="hint">pairs drawn <span id="offset-val">0.100</span> inside the dots</span>
+      <span class="hint">inset into dots</span>
+    </div>
+
+    <div class="field">
+      <span class="label">Width <span id="width-val">0.100</span></span>
+      <input id="in-width" type="range" min="0.02" max="0.2" step="0.005" value="0.1">
+      <span class="hint">stroke, in cells</span>
     </div>
 
     <div class="spacer"></div>
 
-    <label class="check"><input type="checkbox" id="in-dots" checked> Show dots</label>
+    <div class="checks">
+      <label class="check"><input type="checkbox" id="in-straps" checked> Diagonal pairs</label>
+      <label class="check"><input type="checkbox" id="in-dots" checked> Dots</label>
+    </div>
     <button class="btn" id="btn-clear">Clear barriers</button>
     <button class="btn" id="btn-save">Download SVG</button>
   </div>
@@ -216,19 +226,21 @@
   <div class="stage">
     <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Braidwork pattern">
       <style>
+        svg      { --lw: 0.1; --lw2: 0.13; }
         .paper   { fill: #f7f3ea; }
-        .strap   { stroke: #1f6fa8; stroke-width: 0.1; stroke-linecap: round; fill: none; }
+        .strap   { stroke: #1f6fa8; stroke-width: var(--lw); stroke-linecap: round; fill: none; }
         .strap.dim { stroke-opacity: 0.2; }
         .strap.ghost { display: inline; stroke-opacity: 0.28; }
-        .frame   { fill: none; stroke: #141a22; stroke-width: 0.13; stroke-linejoin: miter; }
-        .barrier { stroke: #141a22; stroke-width: 0.13; stroke-linecap: round; }
+        .frame   { fill: none; stroke: #141a22; stroke-width: var(--lw2); stroke-linejoin: miter; }
+        .barrier { stroke: #141a22; stroke-width: var(--lw2); stroke-linecap: round; }
         .dot     { fill: #141a22; }
         .zone    { fill: transparent; cursor: pointer; }
         .zone:hover { fill: #1f6fa8; fill-opacity: 0.08; }
-        .preview { stroke: #141a22; stroke-opacity: 0.45; stroke-width: 0.13;
+        .preview { stroke: #141a22; stroke-opacity: 0.45; stroke-width: var(--lw2);
                    stroke-linecap: round; stroke-dasharray: 0.2 0.2; pointer-events: none; }
         .off       { display: none; }
         .no-dots .dot { display: none; }
+        svg.no-straps .strap { display: none; }
       </style>
       <g id="content"></g>
     </svg>
@@ -254,7 +266,7 @@
   var PAD = 0.75;
   var MAXV = 20;
 
-  var S = { m: 4, n: 3, flip: 1, offset: 0.1, barriers: new Map() };
+  var S = { m: 4, n: 3, flip: 1, offset: 0.1, lw: 0.1, barriers: new Map() };
 
   var svg = document.getElementById("board");
   var content = document.getElementById("content");
@@ -283,8 +295,15 @@
   // 0 -> "/" pair (east-south, west-north); 1 -> "\" pair (east-north, west-south)
   function pairType(cx) { return (cx + S.flip) % 2; }
 
-  // Dots must stay wide enough to cover the jog the offset puts under them.
-  function dotR() { return Math.max(0.2, S.offset + 0.12); }
+  // A dot has to cover the jog the offset puts under it: a strap end sits
+  // `offset` from the dot's centre and its round cap reaches lw/2 past that.
+  // The extra margin also keeps the dot reading as heavier than the straps.
+  function dotR() { return Math.max(0.2, S.offset + 0.12, S.lw + 0.06); }
+
+  function applyWidths() {
+    svg.style.setProperty("--lw", S.lw);
+    svg.style.setProperty("--lw2", num(S.lw * 1.3));
+  }
 
   // Each pair is slid perpendicular, toward its own diamond's centre, so the
   // two straps sit on the inner side of the dots they connect. The two halves
@@ -527,7 +546,21 @@
   inOffset.addEventListener("input", function () {
     S.offset = parseFloat(inOffset.value) || 0;
     offsetVal.textContent = S.offset.toFixed(3);
-    scheduleRender();
+    scheduleRender();                       // offset moves geometry and dot size
+  });
+
+  var inWidth = document.getElementById("in-width"),
+      widthVal = document.getElementById("width-val");
+
+  inWidth.addEventListener("input", function () {
+    S.lw = parseFloat(inWidth.value) || 0.02;
+    widthVal.textContent = S.lw.toFixed(3);
+    applyWidths();                          // strokes are CSS, so this is free
+    scheduleRender();                       // dot radius still has to follow
+  });
+
+  document.getElementById("in-straps").addEventListener("change", function (e) {
+    svg.classList.toggle("no-straps", !e.target.checked);
   });
 
   function setFlip(f) {
@@ -552,7 +585,7 @@
     var clone = svg.cloneNode(true);
     clone.querySelectorAll(".zone, .off, .preview").forEach(function (el) { el.remove(); });
     clone.querySelectorAll(".dim").forEach(function (el) { el.classList.remove("dim"); });
-    clone.removeAttribute("style");
+    // the inline style carries --lw/--lw2, so it travels with the export
     clone.setAttribute("width", (W() + 2 * PAD) * 40);
     clone.setAttribute("height", (H() + 2 * PAD) * 40);
 
@@ -565,6 +598,7 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   });
 
+  applyWidths();
   render();
 })();
 </script>
