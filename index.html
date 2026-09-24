@@ -76,7 +76,13 @@
     border: 1px solid var(--line);
     border-radius: 7px;
   }
+  input[type="range"] {
+    width: 9rem;
+    margin: 4px 0 2px;
+    accent-color: var(--accent);
+  }
   input[type="number"]:focus-visible,
+  input[type="range"]:focus-visible,
   .btn:focus-visible,
   .seg:focus-visible {
     outline: 2px solid var(--accent);
@@ -194,6 +200,12 @@
       <span class="hint">flipping gives the dual</span>
     </div>
 
+    <div class="field">
+      <span class="label">Offset</span>
+      <input id="in-offset" type="range" min="0" max="0.2" step="0.005" value="0.1">
+      <span class="hint">pairs drawn <span id="offset-val">0.100</span> inside the dots</span>
+    </div>
+
     <div class="spacer"></div>
 
     <label class="check"><input type="checkbox" id="in-dots" checked> Show dots</label>
@@ -242,7 +254,7 @@
   var PAD = 0.75;
   var MAXV = 20;
 
-  var S = { m: 4, n: 3, flip: 1, barriers: new Map() };
+  var S = { m: 4, n: 3, flip: 1, offset: 0.1, barriers: new Map() };
 
   var svg = document.getElementById("board");
   var content = document.getElementById("content");
@@ -271,15 +283,34 @@
   // 0 -> "/" pair (east-south, west-north); 1 -> "\" pair (east-north, west-south)
   function pairType(cx) { return (cx + S.flip) % 2; }
 
+  // Dots must stay wide enough to cover the jog the offset puts under them.
+  function dotR() { return Math.max(0.2, S.offset + 0.12); }
+
+  // Each pair is slid perpendicular, toward its own diamond's centre, so the
+  // two straps sit on the inner side of the dots they connect. The two halves
+  // of a long diagonal therefore step past each other at every dot, and the
+  // dot hides the step -- that is where the woven look comes from.
   function strapSegments(cx, cy) {
-    return pairType(cx) === 0
+    var pair = pairType(cx) === 0
       ? [[cx + 1, cy, cx, cy - 1], [cx - 1, cy, cx, cy + 1]]
       : [[cx + 1, cy, cx, cy + 1], [cx - 1, cy, cx, cy - 1]];
+
+    // a segment's midpoint is always (+-0.5, +-0.5) from the centre, so the
+    // unit vector back to the centre has components +-1/sqrt(2)
+    var d = S.offset / Math.SQRT2;
+    return pair.map(function (s) {
+      var ox = Math.sign(cx - (s[0] + s[2]) / 2) * d,
+          oy = Math.sign(cy - (s[1] + s[3]) / 2) * d;
+      return [s[0] + ox, s[1] + oy, s[2] + ox, s[3] + oy];
+    });
   }
+
+  function num(v) { return Math.round(v * 10000) / 10000; }
 
   function line(cls, extra, x1, y1, x2, y2) {
     return '<line class="' + cls + '"' + extra +
-      ' x1="' + x1 + '" y1="' + Y(y1) + '" x2="' + x2 + '" y2="' + Y(y2) + '"/>';
+      ' x1="' + num(x1) + '" y1="' + num(Y(y1)) +
+      '" x2="' + num(x2) + '" y2="' + num(Y(y2)) + '"/>';
   }
 
   // Each diamond splits into four kites meeting at its centre. The east and
@@ -343,7 +374,8 @@
       for (var x = 0; x <= w; x++) {
         if ((x + y) % 2 !== 0) continue;
         dots++;
-        parts.push('<circle class="dot" cx="' + x + '" cy="' + Y(y) + '" r="0.17"/>');
+        parts.push('<circle class="dot" cx="' + x + '" cy="' + Y(y) +
+          '" r="' + num(dotR()) + '"/>');
       }
     }
 
@@ -481,6 +513,21 @@
     S.n = Math.max(1, Math.min(MAXV, Math.round(v)));         // n nonzero
     inN.value = S.n;
     render();
+  });
+
+  var frame = 0;
+  function scheduleRender() {
+    if (frame) return;
+    frame = requestAnimationFrame(function () { frame = 0; render(); });
+  }
+
+  var inOffset = document.getElementById("in-offset"),
+      offsetVal = document.getElementById("offset-val");
+
+  inOffset.addEventListener("input", function () {
+    S.offset = parseFloat(inOffset.value) || 0;
+    offsetVal.textContent = S.offset.toFixed(3);
+    scheduleRender();
   });
 
   function setFlip(f) {
