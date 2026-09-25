@@ -37,8 +37,18 @@
   }
   .wrap { max-width: 1080px; margin: 0 auto; }
 
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 24px;
+    margin-bottom: 18px;
+  }
   header h1 { margin: 0 0 2px; font-size: 1.35rem; letter-spacing: -0.01em; }
-  header p { margin: 0 0 18px; color: var(--muted); font-size: 0.88rem; }
+  header p { margin: 0; color: var(--muted); font-size: 0.88rem; max-width: 46ch; }
+  .mode { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .mode .hint { font-size: 0.72rem; color: var(--muted); }
 
   /* ---- toolbar ---- */
   .toolbar {
@@ -114,6 +124,8 @@
     cursor: pointer;
   }
   .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: 0.45; cursor: default; border-color: var(--line); color: var(--muted); }
+  .check:has(input:disabled) { opacity: 0.45; cursor: default; }
 
   .checks { display: flex; flex-direction: column; gap: 3px; }
   .check {
@@ -175,8 +187,18 @@
 <div class="wrap">
 
   <header>
-    <h1>Braidwork Creator</h1>
-    <p>Build an Islamic braidwork (guilloche) design on a 2<em>m</em> × 2<em>n</em> dot lattice.</p>
+    <div>
+      <h1>Braidwork Creator</h1>
+      <p>Build an Islamic braidwork (guilloche) design on a 2<em>m</em> × 2<em>n</em> dot lattice,
+         then view its Celtic equivalent.</p>
+    </div>
+    <div class="mode">
+      <div class="segmented" role="group" aria-label="Design">
+        <button class="seg" id="seg-islamic" aria-pressed="true">Islamic braidwork</button>
+        <button class="seg" id="seg-celtic" aria-pressed="false">Celtic</button>
+      </div>
+      <span class="hint" id="mode-hint">&nbsp;</span>
+    </div>
   </header>
 
   <div class="toolbar">
@@ -226,7 +248,7 @@
   <div class="stage">
     <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Braidwork pattern">
       <style>
-        svg      { --lw: 0.1; --lw2: 0.13; }
+        svg      { --lw: 0.1; --lw2: 0.13; --lwh: 0.32; }
         .paper   { fill: #f7f3ea; }
         .strap   { stroke: #1f6fa8; stroke-width: var(--lw); stroke-linecap: round; fill: none; }
         .strap.dim { stroke-opacity: 0.2; }
@@ -238,9 +260,11 @@
         .zone:hover { fill: #1f6fa8; fill-opacity: 0.08; }
         .preview { stroke: #141a22; stroke-opacity: 0.45; stroke-width: var(--lw2);
                    stroke-linecap: round; stroke-dasharray: 0.2 0.2; pointer-events: none; }
+        .celtic  { fill: none; stroke: #1f6fa8; stroke-width: var(--lw); stroke-linecap: round; }
+        .celtic-halo { stroke: #f7f3ea; stroke-width: var(--lwh); }
         .off       { display: none; }
         .no-dots .dot { display: none; }
-        svg.no-straps .strap { display: none; }
+        svg.no-straps .strap, svg.no-straps .celtic { display: none; }
       </style>
       <g id="content"></g>
     </svg>
@@ -266,7 +290,8 @@
   var PAD = 0.75;
   var MAXV = 20;
 
-  var S = { m: 4, n: 3, flip: 1, offset: 0.1, lw: 0.1, barriers: new Map() };
+  var S = { m: 4, n: 3, flip: 1, offset: 0.1, lw: 0.1,
+            mode: "islamic", barriers: new Map() };
 
   var svg = document.getElementById("board");
   var content = document.getElementById("content");
@@ -303,6 +328,7 @@
   function applyWidths() {
     svg.style.setProperty("--lw", S.lw);
     svg.style.setProperty("--lw2", num(S.lw * 1.3));
+    svg.style.setProperty("--lwh", num(S.lw * 3.2));   // casing that breaks the under-strand
   }
 
   // Each pair is slid perpendicular, toward its own diamond's centre, so the
@@ -350,6 +376,67 @@
   function hZone(cx, cy) { return ewKite(cx, cy, 1) + ewKite(cx, cy, -1); }
   function vZone(cx, cy) { return nsKite(cx, cy, 1) + nsKite(cx, cy, -1); }
 
+  /* ---- Gross & Tucker's Celtic construction -----------------------------
+     Drop the borders, put a construction dot at each diamond centre (the
+     lattice points with x+y odd) and replace the diamond's pair with a
+     crossing there. The crossing's four arms point at the diagonally
+     adjacent construction dots, ready to be joined later; ARM stops short
+     of halfway so the joins are still visibly missing.
+
+     Which strand runs over follows the diamond's Islamic pair: a diamond
+     whose straps ran NW-SE becomes an NW-SE overcrossing. Because the pairs
+     alternate by cx parity, so does the over/under -- which is what makes it
+     a plait.
+
+     A barrier is kept but drawn invisible: the two strands bounce off it
+     instead of crossing, so each side turns back in an arc that comes just
+     short of the barrier line. */
+
+  var ARM = 0.38;   // fraction of the way toward a diagonal neighbour
+
+  // A bounce arc's two strands come closest at the middle of the wall, a gap
+  // of (ARM - BOW) apart there. That gap has to grow with the stroke width or
+  // the two strokes overlap, so BOW is solved from the current line width
+  // rather than fixed -- capped so it can never push past the centre line.
+  function bowFor() {
+    var gap = Math.min(S.lw + 0.05, ARM * 0.85);
+    return ARM - gap;
+  }
+
+  function celticCross(cx, cy) {
+    // dir +1 runs along (1,1); dir -1 runs along (1,-1)
+    var over = pairType(cx) === 0 ? 1 : -1;
+    return [
+      celticStrand("celtic celtic-under", cx, cy, -over),
+      celticStrand("celtic celtic-halo", cx, cy, over),
+      celticStrand("celtic celtic-over", cx, cy, over)
+    ].join("");
+  }
+
+  function celticStrand(cls, cx, cy, dir) {
+    return line(cls, "", cx - ARM, cy - ARM * dir, cx + ARM, cy + ARM * dir);
+  }
+
+  function celticBounce(cx, cy, type) {
+    var d, bow = bowFor();
+    if (type === "v") {                       // wall runs vertically: turn back left and right
+      d = "M" + num(cx - ARM) + "," + num(Y(cy + ARM)) +
+          "Q" + num(cx + bow) + "," + num(Y(cy)) +
+          " " + num(cx - ARM) + "," + num(Y(cy - ARM)) +
+          "M" + num(cx + ARM) + "," + num(Y(cy + ARM)) +
+          "Q" + num(cx - bow) + "," + num(Y(cy)) +
+          " " + num(cx + ARM) + "," + num(Y(cy - ARM));
+    } else {                                  // wall runs horizontally: turn back above and below
+      d = "M" + num(cx - ARM) + "," + num(Y(cy + ARM)) +
+          "Q" + num(cx) + "," + num(Y(cy - bow)) +
+          " " + num(cx + ARM) + "," + num(Y(cy + ARM)) +
+          "M" + num(cx - ARM) + "," + num(Y(cy - ARM)) +
+          "Q" + num(cx) + "," + num(Y(cy + bow)) +
+          " " + num(cx + ARM) + "," + num(Y(cy - ARM));
+    }
+    return '<path class="celtic celtic-arc" d="' + d + '"/>';
+  }
+
   /* ---- render ---------------------------------------------------------- */
 
   function render() {
@@ -367,43 +454,56 @@
     parts.push('<rect class="paper" x="' + (-PAD) + '" y="' + (-PAD) +
       '" width="' + (w + 2 * PAD) + '" height="' + (h + 2 * PAD) + '"/>');
 
-    // strap-lines, one alternating diagonal pair per full diamond
-    eachDiamond(function (cx, cy) {
-      var k = key(cx, cy);
-      var off = S.barriers.has(k) ? " off" : "";
-      strapSegments(cx, cy).forEach(function (s) {
-        parts.push(line("strap" + off, ' data-d="' + k + '"', s[0], s[1], s[2], s[3]));
+    if (S.mode === "celtic") {
+      // no borders, and each barrier becomes an invisible wall the strands
+      // bounce off rather than a drawn line
+      eachDiamond(function (cx, cy) {
+        var b = S.barriers.get(key(cx, cy));
+        parts.push(b ? celticBounce(cx, cy, b) : celticCross(cx, cy));
       });
-    });
+    } else {
+      // strap-lines, one alternating diagonal pair per full diamond
+      eachDiamond(function (cx, cy) {
+        var k = key(cx, cy);
+        var off = S.barriers.has(k) ? " off" : "";
+        strapSegments(cx, cy).forEach(function (s) {
+          parts.push(line("strap" + off, ' data-d="' + k + '"', s[0], s[1], s[2], s[3]));
+        });
+      });
 
-    // border: the rectangle through the outermost dots
-    parts.push('<rect class="frame" x="0" y="0" width="' + w + '" height="' + h + '"/>');
+      // border: the rectangle through the outermost dots
+      parts.push('<rect class="frame" x="0" y="0" width="' + w + '" height="' + h + '"/>');
 
-    // barriers (both orientations pre-built, hidden until used)
-    eachDiamond(function (cx, cy) {
-      var k = key(cx, cy), cur = S.barriers.get(k);
-      parts.push(line("barrier" + (cur === "h" ? "" : " off"),
-        ' data-b="' + k + '" data-t="h"', cx - 1, cy, cx + 1, cy));
-      parts.push(line("barrier" + (cur === "v" ? "" : " off"),
-        ' data-b="' + k + '" data-t="v"', cx, cy - 1, cx, cy + 1));
-    });
+      // barriers (both orientations pre-built, hidden until used)
+      eachDiamond(function (cx, cy) {
+        var k = key(cx, cy), cur = S.barriers.get(k);
+        parts.push(line("barrier" + (cur === "h" ? "" : " off"),
+          ' data-b="' + k + '" data-t="h"', cx - 1, cy, cx + 1, cy));
+        parts.push(line("barrier" + (cur === "v" ? "" : " off"),
+          ' data-b="' + k + '" data-t="v"', cx, cy - 1, cx, cy + 1));
+      });
+    }
 
-    // dots
+    // dots -- not part of Gross & Tucker's construction, so left out in Celtic mode
     for (var y = 0; y <= h; y++) {
       for (var x = 0; x <= w; x++) {
         if ((x + y) % 2 !== 0) continue;
         dots++;
-        parts.push('<circle class="dot" cx="' + x + '" cy="' + Y(y) +
-          '" r="' + num(dotR()) + '"/>');
+        if (S.mode !== "celtic") {
+          parts.push('<circle class="dot" cx="' + x + '" cy="' + Y(y) +
+            '" r="' + num(dotR()) + '"/>');
+        }
       }
     }
 
-    // hit zones
-    eachDiamond(function (cx, cy) {
-      var d = ' data-cx="' + cx + '" data-cy="' + cy + '"';
-      parts.push('<path class="zone"' + d + ' data-t="h" d="' + hZone(cx, cy) + '"/>');
-      parts.push('<path class="zone"' + d + ' data-t="v" d="' + vZone(cx, cy) + '"/>');
-    });
+    // hit zones -- omitted in Celtic mode, which is view-only
+    if (S.mode !== "celtic") {
+      eachDiamond(function (cx, cy) {
+        var d = ' data-cx="' + cx + '" data-cy="' + cy + '"';
+        parts.push('<path class="zone"' + d + ' data-t="h" d="' + hZone(cx, cy) + '"/>');
+        parts.push('<path class="zone"' + d + ' data-t="v" d="' + vZone(cx, cy) + '"/>');
+      });
+    }
 
     parts.push('<line class="preview off" id="preview"/>');
 
@@ -562,6 +662,25 @@
   document.getElementById("in-straps").addEventListener("change", function (e) {
     svg.classList.toggle("no-straps", !e.target.checked);
   });
+
+  var segIslamic = document.getElementById("seg-islamic"),
+      segCeltic = document.getElementById("seg-celtic"),
+      modeHint = document.getElementById("mode-hint");
+
+  function setMode(mode) {
+    S.mode = mode;
+    var celtic = mode === "celtic";
+    segIslamic.setAttribute("aria-pressed", celtic ? "false" : "true");
+    segCeltic.setAttribute("aria-pressed", celtic ? "true" : "false");
+    modeHint.innerHTML = celtic
+      ? "view only &mdash; switch back to add barriers"
+      : "&nbsp;";
+    document.getElementById("btn-clear").disabled = celtic;
+    document.getElementById("in-dots").disabled = celtic;   // dots aren't part of the Celtic construction
+    render();
+  }
+  segIslamic.addEventListener("click", function () { setMode("islamic"); });
+  segCeltic.addEventListener("click", function () { setMode("celtic"); });
 
   function setFlip(f) {
     S.flip = f;
